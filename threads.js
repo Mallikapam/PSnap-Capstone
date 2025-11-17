@@ -1557,136 +1557,73 @@ Process.prototype.doStopWarping = function () {
     }
 };
 
-// Process.prototype.doParallelForEach = function (upvar, list, count, body) {
-//     var outer = this.context.outerContext, // for tail call elimination
-//     	exp = this.context.expression,
-//         isCustomBlock = this.context.isCustomBlock.
-//         index, scalar=false;
-
-//     if (list.length() == 0) {return; }
-//     if (count.length() == 0) {
-//     	// block is to be executed sequentially over the list elements
-//     	// store the current index in context's first unused inputs slot
-//     	if (isNil(this.context.inputs[4])) {this.context.inputs[4] = 1;	}
-//     	index = this.context.inputs[4];
-//         if (index > list.length()) {return; }
-//         this.context.outerContext.variables.addVar(upvar);
-//         this.context.outerContext.variables.setVar(
-//             upvar,
-//             list.at(index)
-//         );
-//         this.context.inputs[4] += 1;
-//         this.pushContext('doYield');
-//         this.pushContext();
-//         this.evaluate(body, new List(), true);
-//     } else {
-//     	// block is to be executed in parallel
-//     	var receiver = this.homeContext.receiver,
-//     		new_exp, new_arg, hat, cname,
-//     		old_inputs = exp.inputs(), old_arg, list_multiarg;
-
-//     	index = count.at(1);
-//     	if (index == 0) {
-//     		// default is to set the number of jobs equal to input list length
-//     		index = list.length();
-//     	}
-
-//     	for (var i=1; i<index; i+=1) {
-//     		new_exp = receiver.blockForSelector('doParallelForEach', true);
-//     		new_exp.isDraggable = true;
-//     		old_arg = new_exp.inputs()[1]; // old reportblock for list
-
-//     		new_arg = receiver.blockForSelector('reportNewList', true);
-//     		new_arg.isDraggable = true;
-//     		list_multiarg = new_arg.inputs()[0];//MultiArgMorph
-//     		list_multiarg.removeInput();
-//     		list_multiarg.addInput(list.at(i));
-
-//     		new_exp.silentReplaceInput(old_arg, new_arg);
-//     		//list_multiarg = new_exp.inputs()[1].inputs()[0].evaluate();
-
-//     		old_arg = new_exp.inputs()[3]; // cslot
-//     		new_arg = exp.inputs()[3].fullCopy();
-//     		new_exp.silentReplaceInput(old_arg, new_arg);
-
-//     		hat = receiver.blockForSelector('receiveOnClone', true);
-//     		hat.isDraggable = true;
-//     		hat.nextBlock(new_exp);
-//     		cname = 'bob'+i;
-//    			receiver.createPClone(hat,cname);
-//     	}
-//     	this.context.outerContext.variables.addVar(upvar);
-//     	this.context.outerContext.variables.setVar(
-//     			upvar,
-//     			list.at(index)
-//     	);
-//     	this.evaluate(body, new List(), true);
-
-//     }
-// };
-
-////// CAPSTONE WORK
-
 Process.prototype.doParallelForEach = function (upvar, list, count, body) {
-    // This block is asynchronous, so it will be called repeatedly
-    // by the ThreadManager until the parallel job is finished.
+    var outer = this.context.outerContext, // for tail call elimination
+    	exp = this.context.expression,
+        isCustomBlock = this.context.isCustomBlock.
+        index, scalar=false;
 
-    // We use this.context.inputs[4] to store our state.
-    if (isNil(this.context.inputs[4])) {
-        // STEP 1: This is the first call. Start the parallel job.
-
-        // Get worker count from the '%parallel' input. 
-        // Default to hardware cores or 4.
-        var workers = count.first() || navigator.hardwareConcurrency || 4;
-
-        // Get the list as a plain JavaScript array.
-        var jsList = list.asArray();
-
-        // Get the name of the loop variable (e.g., "item").
-        var parmName = upvar; 
-
-        // Translate the C-shaped Snap! script ('body') into a 
-        // JavaScript function string.
-        var jsBody = body.expression.jsMappedCode();
-
-        // Create a new JavaScript function from that string.
-        var mFunction = new Function(parmName, jsBody); //
-
-        // Create the Parallel object from parallel.js.
-        var p = new Parallel(jsList, {maxWorkers: workers}); 
-
-        // Run the job. We use .map() but will ignore the results,
-        // effectively making it a "for each".
-        p.map(mFunction);
-
-        // Store the running job in our context state so we can check
-        // on it in the next cycle.
-        this.context.inputs[4] = p; //
-
+    if (list.length() == 0) {return; }
+    if (count.length() == 0) {
+    	// block is to be executed sequentially over the list elements
+    	// store the current index in context's first unused inputs slot
+    	if (isNil(this.context.inputs[4])) {this.context.inputs[4] = 1;	}
+    	index = this.context.inputs[4];
+        if (index > list.length()) {return; }
+        this.context.outerContext.variables.addVar(upvar);
+        this.context.outerContext.variables.setVar(
+            upvar,
+            list.at(index)
+        );
+        this.context.inputs[4] += 1;
+        this.pushContext('doYield');
+        this.pushContext();
+        this.evaluate(body, new List(), true);
     } else {
-        // STEP 2: This is a subsequent call. Check on the job.
-        var p = this.context.inputs[4]; //
+    	// block is to be executed in parallel
+    	var receiver = this.homeContext.receiver,
+    		new_exp, new_arg, hat, cname,
+    		old_inputs = exp.inputs(), old_arg, list_multiarg;
 
-        // Check if the job is finished.
-        if (p.operation._resolved) { 
-            // Job is done!
-            // Since this is a COMMAND block, we return 'null'
-            // to signal the interpreter to pop this context
-            // and move to the next block in the script.
-            return null;
-        }
+    	index = count.at(1);
+    	if (index == 0) {
+    		// default is to set the number of jobs equal to input list length
+    		index = list.length();
+    	}
+
+    	for (var i=1; i<index; i+=1) {
+    		new_exp = receiver.blockForSelector('doParallelForEach', true);
+    		new_exp.isDraggable = true;
+    		old_arg = new_exp.inputs()[1]; // old reportblock for list
+
+    		new_arg = receiver.blockForSelector('reportNewList', true);
+    		new_arg.isDraggable = true;
+    		list_multiarg = new_arg.inputs()[0];//MultiArgMorph
+    		list_multiarg.removeInput();
+    		list_multiarg.addInput(list.at(i));
+
+    		new_exp.silentReplaceInput(old_arg, new_arg);
+    		//list_multiarg = new_exp.inputs()[1].inputs()[0].evaluate();
+
+    		old_arg = new_exp.inputs()[3]; // cslot
+    		new_arg = exp.inputs()[3].fullCopy();
+    		new_exp.silentReplaceInput(old_arg, new_arg);
+
+    		hat = receiver.blockForSelector('receiveOnClone', true);
+    		hat.isDraggable = true;
+    		hat.nextBlock(new_exp);
+    		cname = 'bob'+i;
+   			receiver.createPClone(hat,cname);
+    	}
+    	this.context.outerContext.variables.addVar(upvar);
+    	this.context.outerContext.variables.setVar(
+    			upvar,
+    			list.at(index)
+    	);
+    	this.evaluate(body, new List(), true);
+
     }
-
-    // STEP 3: Job is not done. Yield and wait.
-    // Tell the interpreter to pause this script, run other scripts,
-    // and then come back to this block on the next frame.
-    this.pushContext('doYield'); //
-    this.pushContext(); //
 };
-////// CAPSTONE WORK
-
-
-
 
 Process.prototype.reportIsFastTracking = function () {
     var ide;
